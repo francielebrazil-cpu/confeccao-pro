@@ -1,0 +1,31 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+body {
+  @apply bg-slate-50 text-slate-900 font-sans antialiased;
+}
+
+.card {
+  @apply bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden;
+}
+
+.btn-primary {
+  @apply relative overflow-hidden bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-semibold shadow-[0_4px_0_0_rgba(0,0,0,0.1)] hover:bg-emerald-700 hover:-translate-y-0.5 active:translate-y-1 active:shadow-none transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed select-none;
+}
+
+.btn-secondary {
+  @apply relative overflow-hidden bg-slate-800 text-white px-5 py-2.5 rounded-xl font-semibold shadow-[0_4px_0_0_rgba(0,0,0,0.1)] hover:bg-slate-900 hover:-translate-y-0.5 active:translate-y-1 active:shadow-none transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed select-none;
+}
+
+.btn-outline {
+  @apply relative overflow-hidden bg-white text-slate-700 border border-slate-200 px-5 py-2.5 rounded-xl font-semibold shadow-[0_2px_0_0_rgba(0,0,0,0.05)] hover:bg-slate-50 hover:border-slate-300 hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed select-none;
+}
+
+.input {
+  @apply w-full bg-white border border-slate-200 rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all;
+}
