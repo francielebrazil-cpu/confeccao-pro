@@ -8,20 +8,21 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 // If it's just the project ID (no dots), expand it
-if (supabaseUrl && !supabaseUrl.includes(".")) {
+if (supabaseUrl && !supabaseUrl.includes('.')) {
   supabaseUrl = `${supabaseUrl}.supabase.co`;
 }
 
 // Ensure URL has protocol
-if (supabaseUrl && !supabaseUrl.startsWith("http")) {
+if (supabaseUrl && !supabaseUrl.startsWith('http')) {
   supabaseUrl = `https://${supabaseUrl}`;
 }
 
 // Remove trailing slash
-if (supabaseUrl && supabaseUrl.endsWith("/")) {
+if (supabaseUrl && supabaseUrl.endsWith('/')) {
   supabaseUrl = supabaseUrl.slice(0, -1);
 }
 
+export const isSupabaseConfigured = !!supabaseUrl && !!supabaseAnonKey;
 export const supabase = createClient(
   supabaseUrl,
   supabaseAnonKey
