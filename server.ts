@@ -57,36 +57,40 @@ let supabase: any = null;
 const getSupabase = () => {
   if (supabase) return supabase;
   
-  let supabaseUrl = (process.env.VITE_SUPABASE_URL || "").trim();
+  let rawUrl = (process.env.VITE_SUPABASE_URL || "").trim();
   const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
   
-  if (!supabaseUrl || !supabaseServiceKey) {
+  if (!rawUrl || !supabaseServiceKey) {
     console.warn("AVISO: Supabase não configurado (URL ou Chave ausente).");
     return null;
   }
 
-  // If it's just the project ID (no dots), expand it
-  if (!supabaseUrl.includes(".")) {
-    supabaseUrl = `${supabaseUrl}.supabase.co`;
+  if (!rawUrl.includes(".")) {
+    rawUrl = `${rawUrl}.supabase.co`;
   }
 
-  // Ensure URL has protocol
-  if (!supabaseUrl.startsWith("http")) {
-    supabaseUrl = `https://${supabaseUrl}`;
+  if (!rawUrl.startsWith("http")) {
+    rawUrl = `https://${rawUrl}`;
   }
 
-  // Remove trailing slash
-  if (supabaseUrl.endsWith("/")) {
-    supabaseUrl = supabaseUrl.slice(0, -1);
-  }
-
-  if (supabaseUrl.includes("seu-projeto.supabase.co") || supabaseUrl.includes("TODO_URL")) {
-    console.warn("AVISO: URL do Supabase parece ser um placeholder:", supabaseUrl);
-    return null;
-  }
-  
   try {
-    console.log("Initializing Supabase client with URL:", supabaseUrl.substring(0, 20) + "...");
+    const parsedUrl = new URL(rawUrl);
+    parsedUrl.pathname = "";
+    parsedUrl.search = "";
+    parsedUrl.hash = "";
+    let supabaseUrl = parsedUrl.toString();
+
+    if (supabaseUrl.endsWith("/")) {
+      supabaseUrl = supabaseUrl.slice(0, -1);
+    }
+
+    if (supabaseUrl.includes("seu-projeto.supabase.co") || supabaseUrl.includes("TODO_URL")) {
+      console.warn("AVISO: URL do Supabase parece ser um placeholder:", supabaseUrl);
+      return null;
+    }
+    
+    console.log("Initializing Supabase client with sanitized URL:", supabaseUrl);
+    console.log("Parsed URL pathname:", parsedUrl.pathname || '/');
     supabase = createClient(supabaseUrl, supabaseServiceKey);
     console.log("Supabase client initialized successfully.");
     return supabase;
