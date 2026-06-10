@@ -1171,7 +1171,11 @@ app.post("/api/employees", async (req, res) => {
     const { id } = req.params;
     const { description, clientId, productId, totalPieces, status, priority, startDate, endDate, unitPrice, totalValue, itemsBreakdown, items } = req.body;
 
-    const { error } = await client.from("production_orders").update({ 
+    console.log("PUT /api/production-orders/:id - Update request");
+    console.log("ID:", id);
+    console.log("Received body:", JSON.stringify({ description, clientId, productId, totalPieces, status, priority, startDate, endDate, unitPrice, totalValue, items: items ? `[Array of ${items.length} items]` : 'null', itemsBreakdown: itemsBreakdown ? `[Array of ${itemsBreakdown.length} items]` : 'null' }, null, 2));
+
+    const updateData = {
       description, 
       client_id: clientId, 
       product_id: productId,
@@ -1183,8 +1187,16 @@ app.post("/api/employees", async (req, res) => {
       start_date: startDate, 
       end_date: endDate,
       items_breakdown: items || itemsBreakdown || []
-    }).eq("id", id);
-    if (error) return res.status(500).json({ error: error.message });
+    };
+
+    console.log("Update data:", JSON.stringify(updateData, null, 2));
+
+    const { error } = await client.from("production_orders").update(updateData).eq("id", id);
+    if (error) {
+      console.error("Update error:", error);
+      return res.status(500).json({ error: error.message });
+    }
+    console.log("Update successful for order ID:", id);
     res.json({ success: true });
   });
 

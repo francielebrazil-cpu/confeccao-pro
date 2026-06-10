@@ -250,6 +250,8 @@ export default function App() {
   const [editingTransaction, setEditingTransaction] = useState<FinancialTransaction | null>(null);
   const [editingRepair, setEditingRepair] = useState<Repair | null>(null);
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
+  const [detailOrderItems, setDetailOrderItems] = useState<OrderItem[]>([]);
+  const [isDetailOrderEditing, setIsDetailOrderEditing] = useState(false);
   const [selectedShifts, setSelectedShifts] = useState<number[]>([]);
   const [expandedEmployees, setExpandedEmployees] = useState<number[]>([]);
   const [isGroupedView, setIsGroupedView] = useState(true);
@@ -1430,6 +1432,48 @@ export default function App() {
     } else {
       const errData = await response.json();
       setError(errData.error || 'Erro ao salvar ordem de produção');
+    }
+  };
+
+  useEffect(() => {
+    if (!isProductionOrderDetailModalOpen) {
+      setIsDetailOrderEditing(false);
+      return;
+    }
+    if (selectedProductionOrderId === null) return;
+    const order = productionOrders.find(o => o.id === selectedProductionOrderId);
+    if (order) {
+      setDetailOrderItems(order.items || []);
+      setIsDetailOrderEditing(false);
+    }
+  }, [isProductionOrderDetailModalOpen, selectedProductionOrderId, productionOrders]);
+
+  const saveDetailOrderItems = async (order: ProductionOrder) => {
+    const updatedItems = detailOrderItems.map(item => ({
+      ...item,
+      quantity: item.itemsBreakdown.reduce((acc, entry) => acc + entry.quantity, 0)
+    }));
+    const totalPieces = updatedItems.reduce((acc, item) => acc + item.quantity, 0);
+    const data = {
+      ...order,
+      items: updatedItems,
+      totalPieces,
+      totalValue: order.unitPrice ? Number((order.unitPrice * totalPieces).toFixed(2)) : order.totalValue
+    };
+
+    const response = await fetch(`/api/production-orders/${order.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+
+    if (response.ok) {
+      setIsDetailOrderEditing(false);
+      await fetchData();
+      setSuccess('Produtos da ordem atualizados com sucesso!');
+    } else {
+      const errData = await response.json();
+      setError(errData.error || 'Erro ao atualizar produtos da ordem');
     }
   };
 
@@ -6708,11 +6752,51 @@ export default function App() {
                         <Trash2 size={16} />
                       </button>
                     </div>
-                    <div className="flex flex-wrap gap-1">
+                    <div className="space-y-2">
                       {item.itemsBreakdown.map((b, bIdx) => (
-                        <span key={bIdx} className="text-[9px] px-1.5 py-0.5 bg-slate-50 text-slate-500 rounded border border-slate-100">
-                          {b.color} / {b.size}: <span className="font-bold text-slate-700">{b.quantity}</span>
-                        </span>
+                        <div key={bIdx} className="grid grid-cols-[1fr_auto_auto] gap-3 items-center bg-slate-50 p-3 rounded-2xl border border-slate-200">
+                          <div className="text-[10px] uppercase tracking-wider text-slate-500">
+                            {b.color} / {b.size}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number"
+                              min="0"
+                              className="input text-xs py-1 h-8 w-20 text-center font-semibold"
+                              value={b.quantity}
+                              onChange={(e) => {
+                                const val = Math.max(0, Number(e.target.value));
+                                const updatedBreakdown = [...item.itemsBreakdown];
+                                updatedBreakdown[bIdx] = { ...updatedBreakdown[bIdx], quantity: val };
+                                const newItems = [...orderItems];
+                                newItems[idx] = {
+                                  ...newItems[idx],
+                                  itemsBreakdown: updatedBreakdown,
+                                  quantity: updatedBreakdown.reduce((acc, entry) => acc + entry.quantity, 0)
+                                };
+                                setOrderItems(newItems);
+                              }}
+                            />
+                            <span className="text-[10px] text-slate-500 font-bold uppercase">pçs</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updatedBreakdown = item.itemsBreakdown.filter((_, i) => i !== bIdx);
+                              const newItems = [...orderItems];
+                              newItems[idx] = {
+                                ...newItems[idx],
+                                itemsBreakdown: updatedBreakdown,
+                                quantity: updatedBreakdown.reduce((acc, entry) => acc + entry.quantity, 0)
+                              };
+                              setOrderItems(newItems);
+                            }}
+                            className="text-red-400 hover:text-red-600 p-1"
+                            title="Remover linha de cor/tamanho"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
                       ))}
                     </div>
                     <div className="grid grid-cols-2 gap-3 mt-2.5 pt-2.5 border-t border-slate-100">
@@ -6723,6 +6807,7 @@ export default function App() {
                           min="0"
                           className="input text-xs py-1 h-8 w-full font-semibold focus:ring-1 focus:ring-indigo-500"
                           value={item.quantity}
+                          readOnly={item.itemsBreakdown.length > 0}
                           onChange={(e) => {
                             const val = Math.max(0, Number(e.target.value));
                             const newItems = [...orderItems];
@@ -6730,6 +6815,9 @@ export default function App() {
                             setOrderItems(newItems);
                           }}
                         />
+                        {item.itemsBreakdown.length > 0 && (
+                          <p className="text-[10px] text-slate-400 mt-1">Ajuste as quantidades por cor/tamanho acima; o total é calculado automaticamente.</p>
+                        )}
                       </div>
                       <div>
                         <label className="block text-[10px] font-bold text-slate-400 uppercase mb-0.5">Preço Unitário (R$)</label>
@@ -6864,6 +6952,7 @@ export default function App() {
           if (!order) return <p className="text-center py-8 text-slate-400">Ordem não encontrada.</p>;
           const stats = getOrderStats(order.id);
           const hasFinance = transactions.some(t => t.relatedId === order.id && t.category === 'Venda de Produção');
+          const activeOrderItems = isDetailOrderEditing ? detailOrderItems : order.items || [];
           
           return (
             <div className="space-y-6">
@@ -6882,24 +6971,32 @@ export default function App() {
                     <DollarSign size={16} /> Lançar Financeiro
                   </button>
                 )}
-                <button 
-                  onClick={() => { 
-                    setEditingProductionOrder(order); 
-                    setOrderItems((order.items || []).map(item => ({
-                      ...item,
-                      unitPrice: item.unitPrice !== undefined ? item.unitPrice : (order.unitPrice || 0)
-                    })));
-                    setItemsBreakdown([]);
-                    setSelectedProductIdForOrder(null);
-                    setOrderItemColor('');
-                    setOrderItemSheets('');
-                    setOrderItemGrid('');
-                    setIsProductionOrderModalOpen(true); 
-                  }}
-                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-colors font-medium flex items-center gap-2 text-sm"
-                >
-                  <Edit2 size={16} /> Editar
-                </button>
+                {!isDetailOrderEditing ? (
+                  <button
+                    onClick={() => {
+                      setDetailOrderItems(order.items || []);
+                      setIsDetailOrderEditing(true);
+                    }}
+                    className="px-4 py-2 bg-amber-500 text-white rounded-xl hover:bg-amber-600 transition-colors font-medium flex items-center gap-2 text-sm"
+                  >
+                    <Edit2 size={16} /> Editar Produtos
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => setIsDetailOrderEditing(false)}
+                      className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-colors font-medium flex items-center gap-2 text-sm"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={() => saveDetailOrderItems(order)}
+                      className="px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors font-medium flex items-center gap-2 text-sm"
+                    >
+                      <CheckCircle2 size={16} /> Salvar Produtos
+                    </button>
+                  </>
+                )}
                 <button 
                   onClick={() => exportIndividualProductionOrderPDF(order)}
                   className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-colors font-medium flex items-center gap-2 text-sm"
@@ -6953,10 +7050,10 @@ export default function App() {
                     </h3>
                     
                     <div className="space-y-6">
-                      {order.items && order.items.length > 0 ? (
+                      {activeOrderItems && activeOrderItems.length > 0 ? (
                         <div className="space-y-4">
                           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Produtos e Grades</p>
-                          {order.items.map((item, idx) => (
+                          {activeOrderItems.map((item, idx) => (
                             <div key={idx} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-3">
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2">
@@ -6965,15 +7062,65 @@ export default function App() {
                                   <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-lg text-[10px] font-bold">{item.quantity} pçs</span>
                                 </div>
                               </div>
-                              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                                {item.itemsBreakdown.map((b, bIdx) => (
-                                  <div key={bIdx} className="bg-white p-2 rounded-xl border border-slate-200 flex flex-col items-center text-center">
-                                    <p className="text-[9px] font-bold text-slate-400 uppercase truncate w-full">{b.color}</p>
-                                    <p className="text-xs font-medium text-slate-700">{b.size}</p>
-                                    <p className="text-xs font-bold text-indigo-600">{b.quantity} pçs</p>
-                                  </div>
-                                ))}
-                              </div>
+                              {isDetailOrderEditing ? (
+                                <div className="space-y-3">
+                                  {item.itemsBreakdown.map((b, bIdx) => (
+                                    <div key={bIdx} className="grid grid-cols-[1fr_auto_auto] gap-3 items-center bg-white p-3 rounded-2xl border border-slate-200">
+                                      <div className="text-[10px] uppercase tracking-wider text-slate-500">
+                                        {b.color} / {b.size}
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          className="input text-xs py-1 h-8 w-20 text-center font-semibold"
+                                          value={b.quantity}
+                                          onChange={(e) => {
+                                            const val = Math.max(0, Number(e.target.value));
+                                            const updatedBreakdown = [...item.itemsBreakdown];
+                                            updatedBreakdown[bIdx] = { ...updatedBreakdown[bIdx], quantity: val };
+                                            const newItems = [...detailOrderItems];
+                                            newItems[idx] = {
+                                              ...newItems[idx],
+                                              itemsBreakdown: updatedBreakdown,
+                                              quantity: updatedBreakdown.reduce((acc, entry) => acc + entry.quantity, 0)
+                                            };
+                                            setDetailOrderItems(newItems);
+                                          }}
+                                        />
+                                        <span className="text-[10px] text-slate-500 font-bold uppercase">pçs</span>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const updatedBreakdown = item.itemsBreakdown.filter((_, i) => i !== bIdx);
+                                          const newItems = [...detailOrderItems];
+                                          newItems[idx] = {
+                                            ...newItems[idx],
+                                            itemsBreakdown: updatedBreakdown,
+                                            quantity: updatedBreakdown.reduce((acc, entry) => acc + entry.quantity, 0)
+                                          };
+                                          setDetailOrderItems(newItems);
+                                        }}
+                                        className="text-red-400 hover:text-red-600 p-1"
+                                        title="Remover linha de cor/tamanho"
+                                      >
+                                        <Trash2 size={16} />
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                                  {item.itemsBreakdown.map((b, bIdx) => (
+                                    <div key={bIdx} className="bg-white p-2 rounded-xl border border-slate-200 flex flex-col items-center text-center">
+                                      <p className="text-[9px] font-bold text-slate-400 uppercase truncate w-full">{b.color}</p>
+                                      <p className="text-xs font-medium text-slate-700">{b.size}</p>
+                                      <p className="text-xs font-bold text-indigo-600">{b.quantity} pçs</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           ))}
                         </div>
